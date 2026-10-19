@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clean Music Search & Player</title>
+    <title>Fixed Music Search Player</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -40,7 +40,7 @@
             padding: 12px 24px;
             border: none;
             border-radius: 25px;
-            background-color: #1DB954; /* Music player accent green */
+            background-color: #1DB954; /* Music green accent */
             color: white;
             font-weight: bold;
             cursor: pointer;
@@ -50,7 +50,7 @@
         button:hover {
             background-color: #1ed760;
         }
-        /* Autocomplete Suggestions Box */
+        /* Autocomplete Dropdown Menu Box */
         .suggestions-box {
             position: absolute;
             top: 50px;
@@ -60,7 +60,7 @@
             border-radius: 10px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.5);
             z-index: 999;
-            max-height: 250px;
+            max-height: 220px;
             overflow-y: auto;
             display: none;
             list-style: none;
@@ -78,7 +78,30 @@
             background-color: #1DB954;
             color: white;
         }
-        /* Player Box Layout */
+        /* Results Feed Container */
+        .results-feed {
+            width: 100%;
+            max-width: 500px;
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+            display: none;
+            background: #181818;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .track-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #282828;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .track-item:hover {
+            background-color: #282828;
+            color: #1DB954;
+        }
+        /* Player Dashboard Card Layout */
         .player-card {
             width: 100%;
             max-width: 500px;
@@ -89,25 +112,26 @@
             background: #181818;
             padding: 15px;
             text-align: center;
+            box-sizing: border-box;
         }
         .track-name {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #1DB954;
             margin-bottom: 12px;
         }
-        /* Audio Player Frame Height Fix */
         .iframe-container {
             width: 100%;
-            height: 80px;
+            height: 60px; /* Limits the view strictly to the native audio panel strip */
             overflow: hidden;
             border-radius: 8px;
+            background: #000;
         }
         iframe {
             width: 100%;
             height: 200px;
             border: none;
-            margin-top: -60px; /* Shifts the video canvas upward, leaving only the audio progress bar visible */
+            margin-top: -60px; /* Displaces the video view canvas upwards */
         }
     </style>
 </head>
@@ -115,11 +139,14 @@
 
     <div class="search-wrapper">
         <div class="search-container">
-            <input type="text" id="search-query" placeholder="Search a song or artist..." autocomplete="off" oninput="fetchSuggestions(this.value)" onkeydown="if(event.key === 'Enter') startSearch(this.value)">
-            <button onclick="startSearch(document.getElementById('search-query').value)">Play</button>
+            <input type="text" id="search-query" placeholder="Search a song or artist..." autocomplete="off" oninput="fetchSuggestions(this.value)" onkeydown="if(event.key === 'Enter') executeSearch(this.value)">
+            <button onclick="executeSearch(document.getElementById('search-query').value)">Search</button>
         </div>
         <ul class="suggestions-box" id="suggestions"></ul>
     </div>
+
+    <!-- Displays actual results generated directly on the frontend layout -->
+    <ul class="results-feed" id="search-results"></ul>
 
     <div class="player-card" id="player-view">
         <div class="track-name" id="display-title">Streaming Track...</div>
@@ -129,7 +156,7 @@
     </div>
 
     <script>
-        // Real-time text engine autocomplete query mapper
+        // Dropdown Auto-suggest loop
         window.handleAutocomplete = function(data) {
             const suggestionsContainer = document.getElementById('suggestions');
             suggestionsContainer.innerHTML = '';
@@ -147,7 +174,7 @@
                 li.onclick = function() {
                     document.getElementById('search-query').value = item;
                     suggestionsContainer.style.display = 'none';
-                    startSearch(item);
+                    executeSearch(item);
                 };
                 suggestionsContainer.appendChild(li);
             });
@@ -159,26 +186,69 @@
                 document.getElementById('suggestions').style.display = 'none';
                 return;
             }
-            
             const oldScript = document.getElementById('autocomplete-script');
             if (oldScript) oldScript.remove();
 
             const script = document.createElement('script');
             script.id = 'autocomplete-script';
+            // Correct format mapping parameter arrays
             script.src = `https://google.com{encodeURIComponent(query)}&callback=handleAutocomplete`;
             document.body.appendChild(script);
         }
 
-        function startSearch(query) {
+        // Uses a highly resilient, cross-origin scraper mirror to return direct IDs
+        async function executeSearch(query) {
             if (!query.trim()) return;
             document.getElementById('suggestions').style.display = 'none';
 
-            document.getElementById('display-title').innerText = query;
-            document.getElementById('player-view').style.display = 'block';
+            const feed = document.getElementById('search-results');
+            feed.innerHTML = '<li class="track-item">Searching music files...</li>';
+            feed.style.display = 'block';
 
-            // Uses a search embed structure. YouTube handles this seamlessly when hosted outside Google Sites limits.
-            const optimizedQuery = encodeURIComponent(query + " music");
-            document.getElementById('music-frame').src = `https://youtube.com{optimizedQuery}&autoplay=1`;
+            try {
+                // Hits a free public indexing node to map clean search matches natively
+                const res = await fetch(`https://kavin.rocks{encodeURIComponent(query + " audio")}&filter=videos`);
+                const data = await res.json();
+
+                if (data && data.items && data.items.length > 0) {
+                    feed.innerHTML = '';
+                    const items = data.items.slice(0, 5);
+                    
+                    items.forEach(track => {
+                        const li = document.createElement('li');
+                        li.className = 'track-item';
+                        li.innerText = track.title;
+                        
+                        // Safely handles both formats of item parsing
+                        const id = track.id || (track.url ? track.url.split('v=')[1] : null);
+                        if (id) {
+                            li.onclick = () => playTrack(id, track.title);
+                            feed.appendChild(li);
+                        }
+                    });
+                } else {
+                    feed.innerHTML = '<li class="track-item" style="color:red;">No tracks found. Try typing a different song name.</li>';
+                }
+            } catch (err) {
+                // Bulletproof absolute fallback using the direct connection if the scraping mirror encounters any latency blocks
+                feed.innerHTML = `<li class="track-item" style="color:#ffae00; font-weight:bold;">👉 Click here to directly stream the top match for "${query}"</li>`;
+                feed.onclick = () => {
+                    document.getElementById('display-title').innerText = query;
+                    document.getElementById('player-view').style.display = 'block';
+                    feed.style.display = 'none';
+                    // Pulls explicit direct stream configuration
+                    document.getElementById('music-frame').src = `https://youtube.com{encodeURIComponent(query)}&autoplay=1&controls=1`;
+                };
+            }
+        }
+
+        function playTrack(videoId, title) {
+            document.getElementById('search-results').style.display = 'none';
+            document.getElementById('display-title').innerText = title;
+            document.getElementById('player-view').style.display = 'block';
+            
+            // Delivers clean, un-sandboxed track streams directly into the GitHub frame
+            document.getElementById('music-frame').src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=1`;
         }
 
         document.addEventListener('click', function(e) {
