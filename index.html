@@ -2,117 +2,188 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Browser Music Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Music Search & Player</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #121212;
             color: #ffffff;
+            margin: 0;
+            padding: 15px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 15px;
-            box-sizing: border-box;
         }
-        .player-container {
-            background-color: #1e1e1e;
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-            text-align: center;
-            width: 100%;
-            max-width: 440px;
-            box-sizing: border-box;
-        }
-        h2 { 
-            margin-top: 0;
-            margin-bottom: 20px; 
-            font-weight: 700; 
-            color: #1DB954; 
-            font-size: 24px;
-        }
-        .search-box {
-            display: flex;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border-radius: 25px;
-            overflow: hidden;
-            border: 1px solid #333;
-        }
-        input {
-            flex: 1;
-            padding: 14px 18px;
-            border: none;
-            outline: none;
-            background-color: #2a2a2a;
-            color: white;
-            font-size: 15px;
-        }
-        button {
-            padding: 14px 24px;
-            border: none;
-            background-color: #1DB954;
-            color: white;
-            font-weight: bold;
-            font-size: 15px;
-            cursor: pointer;
-        }
-        button:hover { background-color: #1ed760; }
-        .video-box {
+        .search-wrapper {
             position: relative;
             width: 100%;
-            padding-bottom: 56.25%;
-            height: 0;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+        .search-container {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            background-color: #242424;
+            color: white;
+            font-size: 16px;
+            outline: none;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            background-color: #1DB954; /* Music player accent green */
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1ed760;
+        }
+        /* Autocomplete Suggestions Box */
+        .suggestions-box {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            background-color: #242424;
+            border-radius: 10px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            z-index: 999;
+            max-height: 250px;
+            overflow-y: auto;
+            display: none;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .suggestion-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #2e2e2e;
+            color: #e0e0e0;
+            font-size: 15px;
+        }
+        .suggestion-item:hover {
+            background-color: #1DB954;
+            color: white;
+        }
+        /* Player Box Layout */
+        .player-card {
+            width: 100%;
+            max-width: 500px;
+            display: none;
             border-radius: 12px;
             overflow: hidden;
-            background-color: #000;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            background: #181818;
+            padding: 15px;
+            text-align: center;
         }
-        .video-box iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .track-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1DB954;
+            margin-bottom: 12px;
+        }
+        /* Audio Player Frame Height Fix */
+        .iframe-container {
             width: 100%;
-            height: 100%;
+            height: 80px;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        iframe {
+            width: 100%;
+            height: 200px;
             border: none;
+            margin-top: -60px; /* Shifts the video canvas upward, leaving only the audio progress bar visible */
         }
     </style>
 </head>
 <body>
 
-    <div class="player-container">
-        <h2>Browser Player</h2>
-        
-        <div class="search-box">
-            <input type="text" id="songQuery" placeholder="Search any song or artist...">
-            <button onclick="searchAndPlay()">Play</button>
+    <div class="search-wrapper">
+        <div class="search-container">
+            <input type="text" id="search-query" placeholder="Search a song or artist..." autocomplete="off" oninput="fetchSuggestions(this.value)" onkeydown="if(event.key === 'Enter') startSearch(this.value)">
+            <button onclick="startSearch(document.getElementById('search-query').value)">Play</button>
         </div>
+        <ul class="suggestions-box" id="suggestions"></ul>
+    </div>
 
-        <div class="video-box">
-            <iframe id="player" src="https://youtube.com" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div class="player-card" id="player-view">
+        <div class="track-name" id="display-title">Streaming Track...</div>
+        <div class="iframe-container">
+            <iframe id="music-frame" src="" allow="autoplay"></iframe>
         </div>
     </div>
 
     <script>
-        function searchAndPlay() {
-            const query = document.getElementById('songQuery').value;
-            if (!query) return;
+        // Real-time text engine autocomplete query mapper
+        window.handleAutocomplete = function(data) {
+            const suggestionsContainer = document.getElementById('suggestions');
+            suggestionsContainer.innerHTML = '';
+            
+            if (!data || !data[1] || data[1].length === 0) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
 
-            // Clean query string and append "music" to target audio tracks
-            const cleanQuery = encodeURIComponent(query + " music");
+            const listItems = data[1].slice(0, 5);
+            listItems.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'suggestion-item';
+                li.innerText = item;
+                li.onclick = function() {
+                    document.getElementById('search-query').value = item;
+                    suggestionsContainer.style.display = 'none';
+                    startSearch(item);
+                };
+                suggestionsContainer.appendChild(li);
+            });
+            suggestionsContainer.style.display = 'block';
+        };
+
+        function fetchSuggestions(query) {
+            if (!query.trim()) {
+                document.getElementById('suggestions').style.display = 'none';
+                return;
+            }
             
-            // This format works perfectly when served from a real domain like GitHub Pages
-            const searchPlaylistUrl = "https://youtube.com" + cleanQuery + "&autoplay=1&playsinline=1";
-            
-            document.getElementById('player').src = searchPlaylistUrl;
+            const oldScript = document.getElementById('autocomplete-script');
+            if (oldScript) oldScript.remove();
+
+            const script = document.createElement('script');
+            script.id = 'autocomplete-script';
+            script.src = `https://google.com{encodeURIComponent(query)}&callback=handleAutocomplete`;
+            document.body.appendChild(script);
         }
 
-        document.getElementById('songQuery').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                searchAndPlay();
+        function startSearch(query) {
+            if (!query.trim()) return;
+            document.getElementById('suggestions').style.display = 'none';
+
+            document.getElementById('display-title').innerText = query;
+            document.getElementById('player-view').style.display = 'block';
+
+            // Uses a search embed structure. YouTube handles this seamlessly when hosted outside Google Sites limits.
+            const optimizedQuery = encodeURIComponent(query + " music");
+            document.getElementById('music-frame').src = `https://youtube.com{optimizedQuery}&autoplay=1`;
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-wrapper')) {
+                document.getElementById('suggestions').style.display = 'none';
             }
         });
     </script>
